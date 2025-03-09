@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Filtering from TXT File</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background-color: #1e1e1e; color: #fff; }
+        h2 { color: #ffcc00; }
+        input, button { margin: 10px; padding: 12px; font-size: 16px; border-radius: 5px; border: none; }
+        input[type="file"], input[type="text"] { background: #333; color: #fff; border: 1px solid #555; }
+        button { background-color: #ffcc00; color: #333; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        button:hover { background-color: #ffaa00; transform: scale(1.05); }
+        pre { background: #222; padding: 15px; border: 1px solid #444; text-align: left; max-width: 600px; margin: auto; white-space: pre-wrap; word-wrap: break-word; color: #fff; }
+        .hidden { display: none; }
+        #count { font-weight: bold; color: #ff4444; }
+        .footer { margin-top: 30px; padding: 10px; background: #333; color: #ffcc00; border-radius: 5px; }
+        #notification { background: #28a745; color: white; padding: 10px; border-radius: 5px; margin: 10px auto; width: 50%; display: none; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        #fileLabel { display: inline-block; padding: 12px; background: #333; border-radius: 5px; cursor: pointer; color: #ffcc00; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #output, #output * { visibility: visible; }
+            #output { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <h2>🔍 Error Filtering from TXT File</h2>
+
+    <label id="fileLabel" for="fileInput">📂 Choose File</label>
+    <input type="file" id="fileInput" style="display:none;" onchange="updateFileName()">
+    <span id="fileName">📁 No file selected</span>
+
+    <br><br>
+
+    <input type="text" id="startWord" placeholder="🔎 Start word">
+    <input type="text" id="endWord" placeholder="🔎 End word">
+
+    <br><br>
+
+    <button id="searchBtn" onclick="filterFile()">Start Scan</button>
+    <button id="clearBtn" onclick="clearResults()" class="hidden">Clear Results</button>
+    <button id="saveBtn" onclick="saveResults()" class="hidden">Save Results</button>
+    <button id="printBtn" onclick="printResults()" class="hidden">Print Results</button>
+    <button id="emailBtn" onclick="sendEmail()" class="hidden">📧 Send via Email</button>
+
+    <div id="notification"></div>
+
+    <h3>Errors Found: <span id="count">0</span></h3>
+    <h3>Results:</h3>
+    <pre id="output">No scan performed yet...</pre>
+
+    <div class="footer">
+        <p>📌 Developed by: <strong>Mohammad Almhanna</strong></p>
+        <p>📧 Contact: mohannam66@gmail.com</p>
+        <p>© 2025 All Rights Reserved</p>
+    </div>
+
+    <script>
+        let isElectron = false;
+        try {
+            isElectron = !!window.require;
+        } catch (e) {}
+
+        function showNotification(message, success = true) {
+            let notification = document.getElementById("notification");
+            notification.style.background = success ? "#28a745" : "#dc3545";
+            notification.textContent = message;
+            notification.style.display = "block";
+            setTimeout(() => { notification.style.display = "none"; }, 3000);
+        }
+
+        function updateFileName() {
+            let fileInput = document.getElementById("fileInput");
+            let fileName = document.getElementById("fileName");
+            fileName.textContent = fileInput.files.length ? `📁 ${fileInput.files[0].name}` : "📁 No file selected";
+        }
+
+        function filterFile() {
+            let fileInput = document.getElementById("fileInput");
+            let startWord = document.getElementById("startWord").value.trim();
+            let endWord = document.getElementById("endWord").value.trim();
+            let output = document.getElementById("output");
+            let count = document.getElementById("count");
+
+            if (!fileInput.files.length) {
+                showNotification("Please select a file first.", false);
+                return;
+            }
+
+            if (!startWord || !endWord) {
+                showNotification("Please enter both start and end words.", false);
+                return;
+            }
+
+            let reader = new FileReader();
+            reader.onload = function(event) {
+                let text = event.target.result;
+                let lines = text.split("\n");
+                let results = [];
+                let regex = new RegExp(`${startWord}(.*?)${endWord}`, "gi");
+
+                lines.forEach(line => {
+                    let match;
+                    while ((match = regex.exec(line)) !== null) {
+                        results.push(match[0]);
+                    }
+                });
+
+                output.textContent = results.length ? results.join("\n") : "No matches found.";
+                count.textContent = results.length;
+
+                document.querySelectorAll("button.hidden").forEach(btn => btn.classList.remove("hidden"));
+            };
+
+            reader.readAsText(fileInput.files[0]);
+        }
+
+        function printResults() {
+            let results = document.getElementById("output").textContent;
+            if (results === "No scan performed yet..." || results === "No matches found.") {
+                showNotification("No results to print.", false);
+                return;
+            }
+            window.print();
+        }
+
+        function sendEmail() {
+            let results = document.getElementById("output").textContent;
+            if (results === "No scan performed yet..." || results === "No matches found.") {
+                showNotification("No results to send.", false);
+                return;
+            }
+
+            if (isElectron) {
+                const { ipcRenderer } = require("electron");
+                ipcRenderer.send("send-email", results);
+            } else {
+                let email = "recipient@example.com";
+                let subject = "Filtered Results";
+                let body = encodeURIComponent(results);
+                window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+            }
+        }
+
+        function clearResults() {
+            document.getElementById("output").textContent = "No scan performed yet...";
+            document.getElementById("count").textContent = "0";
+            document.getElementById("fileInput").value = "";
+            document.getElementById("fileName").textContent = "📁 No file selected";
+            document.querySelectorAll("button.hidden").forEach(btn => btn.classList.add("hidden"));
+            showNotification("Results cleared successfully.");
+        }
+
+        function saveResults() {
+            let results = document.getElementById("output").textContent;
+            if (results === "No scan performed yet..." || results === "No matches found.") {
+                showNotification("No results to save.", false);
+                return;
+            }
+
+            let blob = new Blob([results], { type: "text/plain" });
+            let a = document.createElement("a");
+            let filename = "filtered_results_" + new Date().toISOString().replace(/[:.]/g, "-") + ".txt";
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+        }
+    </script>
+
+</body>
+</html>
